@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -33,36 +34,16 @@ public class ObservableCombineUnitTest {
 
     @Test
     public void givenTwoObservables_whenMerged_shouldEmitCombinedResults() {
-        List<String> results = new ArrayList<>();
+        TestSubscriber<String> testSubscriber = new TestSubscriber<>();
 
         //@formatter:off
         Observable.merge(
           Observable.from(new String[] {"Hello", "World"}),
           Observable.from(new String[]{ "I love", "RxJava"})
-        ).subscribe(data -> {
-          results.add(data); 
-        });
+        ).subscribe(testSubscriber);
         //@formatter:on
 
-        assertThat(results).isNotEmpty();
-        assertThat(results.size()).isEqualTo(4);
-        assertThat(results).contains("Hello", "World", "I love", "RxJava");
-    }
-
-    @Test
-    public void givenAnObservable_whenStartWith_thenPrependEmittedResults() {
-        StringBuffer buffer = new StringBuffer();
-
-        //@formatter:off
-        Observable
-          .from(new String[] { "RxJava", "Observables" })
-          .startWith("Buzzwords of Reactive Programming")
-          .subscribe(data -> {
-            buffer.append(data).append(" ");
-          });
-        //@formatter:on
-
-        assertThat(buffer.toString().trim()).isEqualTo("Buzzwords of Reactive Programming RxJava Observables");
+        testSubscriber.assertValues("Hello", "World", "I love", "RxJava");
     }
 
     @Test
@@ -105,6 +86,24 @@ public class ObservableCombineUnitTest {
         
         testSubscriber.assertValues("hello", "world", "rxjava");
         testSubscriber.assertError(ExecutionException.class);
+    }
+    
+    @Test
+    public void givenAStream_whenZippedWithInterval_shouldDelayStreamEmmission() {
+        TestSubscriber<String> testSubscriber = new TestSubscriber<>();
+        
+        Observable<String> data = Observable.just("one", "two", "three", "four", "five");
+        Observable<Long> interval = Observable.interval(1L, TimeUnit.SECONDS);
+        
+        //@formatter:off
+        Observable.zip(data, interval, (strData, tick) -> {
+            return String.format("[%d]=%s", tick, strData);
+        }).toBlocking().subscribe(testSubscriber);
+        //@formatter:on
+        
+        testSubscriber.assertCompleted();
+        testSubscriber.assertValueCount(5);
+        testSubscriber.assertValues("[0]=one", "[1]=two", "[2]=three", "[3]=four", "[4]=five");
     }
     
     private Callable<String> createCallable(final String data) {
